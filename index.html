@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>リレー添削 — 3AI文章磨き</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Antique+Soft&family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0e0e12;
+  --surface: #16161e;
+  --surface2: #1e1e2a;
+  --border: #2a2a3a;
+  --text: #e8e6e0;
+  --muted: #6a6a7a;
+  --groq: #00c896;
+  --gemini: #4285f4;
+  --claude: #d97842;
+  --final: #a855f7;
+  --groq-bg: rgba(0,200,150,0.06);
+  --gemini-bg: rgba(66,133,244,0.06);
+  --claude-bg: rgba(217,120,66,0.06);
+  --final-bg: rgba(168,85,247,0.06);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Noise texture overlay ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+/* ── Header ── */
+header {
+  position: relative;
+  z-index: 1;
+  padding: 20px 32px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+}
+
+.logo {
+  font-family: 'Zen Antique Soft', serif;
+  font-size: 22px;
+  letter-spacing: 0.15em;
+  background: linear-gradient(135deg, var(--groq), var(--gemini), var(--claude));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.logo-sub {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.ai-badges {
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  letter-spacing: 0.05em;
+  border: 1px solid;
+  opacity: 0.7;
+}
+
+.badge.groq { color: var(--groq); border-color: var(--groq); }
+.badge.gemini { color: var(--gemini); border-color: var(--gemini); }
+.badge.claude { color: var(--claude); border-color: var(--claude); }
+
+/* ── API Key Setup ── */
+.setup-panel {
+  position: relative;
+  z-index: 1;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 32px;
+}
+
+.setup-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: 'Noto Sans JP', sans-serif;
+  transition: color 0.2s;
+}
+
+.setup-toggle:hover { color: var(--text); }
+
+.setup-toggle .arrow {
+  transition: transform 0.2s;
+  font-size: 10px;
+}
+
+.setup-toggle.open .arrow { transform: rotate(90deg); }
+
+.setup-fields {
+  display: none;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.setup-fields.open { display: grid; }
+
+.key-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.key-label {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-family: 'DM Mono', monospace;
+}
+
+.key-label.groq { color: var(--groq); }
+.key-label.gemini { color: var(--gemini); }
+
+.key-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  border-radius: 2px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.key-input:focus { border-color: var(--muted); }
+.key-input::placeholder { color: #333; }
+
+.save-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 8px 20px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+  align-self: flex-end;
+}
+
+.save-btn:hover { border-color: var(--text); color: var(--text); }
+
+.key-saved {
+  font-size: 11px;
+  color: var(--groq);
+  display: none;
+  align-self: flex-end;
+  padding-bottom: 8px;
+}
+
+/* ── Main ── */
+main {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ── Input section ── */
+.input-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-label {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  display: flex;
+  justify-content: space-between;
+}
+
+.char-count {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 20px;
+  font-family: 'Noto Sans JP', serif;
+  font-size: 15px;
+  line-height: 2;
+  resize: vertical;
+  min-height: 180px;
+  outline: none;
+  border-radius: 2px;
+  transition: border-color 0.2s;
+  letter-spacing: 0.03em;
+}
+
+textarea:focus { border-color: #444; }
+textarea::placeholder { color: #333; font-size: 14px; }
+
+/* ── Run button ── */
+.run-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.run-btn {
+  background: linear-gradient(135deg, var(--groq), var(--gemini));
+  color: #000;
+  border: none;
+  padding: 12px 32px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: opacity 0.2s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.run-btn:hover { opacity: 0.9; }
+.run-btn:active { transform: scale(0.98); }
+.run-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.status-text {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+}
+
+/* ── Relay steps ── */
+.relay-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.relay-step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+
+.relay-step.active-groq { border-color: var(--groq); }
+.relay-step.active-gemini { border-color: var(--gemini); }
+.relay-step.active-claude { border-color: var(--claude); }
+.relay-step.active-final { border-color: var(--final); }
+
+.step-header {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.step-header.groq { background: var(--groq-bg); }
+.step-header.gemini { background: var(--gemini-bg); }
+.step-header.claude { background: var(--claude-bg); }
+.step-header.final { background: var(--final-bg); }
+
+.step-num {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+
+.step-num.groq { color: var(--groq); border-color: var(--groq); }
+.step-num.gemini { color: var(--gemini); border-color: var(--gemini); }
+.step-num.claude { color: var(--claude); border-color: var(--claude); }
+.step-num.final { color: var(--final); border-color: var(--final); }
+
+.step-info { flex: 1; }
+
+.step-name {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+
+.step-name.groq { color: var(--groq); }
+.step-name.gemini { color: var(--gemini); }
+.step-name.claude { color: var(--claude); }
+.step-name.final { color: var(--final); }
+
+.step-role {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.step-status {
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step-status .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.step-status.running .dot {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.step-status.running.groq .dot { background: var(--groq); }
+.step-status.running.gemini .dot { background: var(--gemini); }
+.step-status.running.claude .dot { background: var(--claude); }
+.step-status.running.final .dot { background: var(--final); }
+.step-status.done .dot { background: #555; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+.step-body {
+  padding: 20px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 14px;
+  line-height: 1.9;
+  color: #aaa;
+  white-space: pre-wrap;
+  word-break: break-all;
+  min-height: 60px;
+  display: none;
+}
+
+.step-body.visible { display: block; }
+
+.step-body.result-text {
+  font-family: 'Zen Antique Soft', serif;
+  font-size: 15px;
+  color: var(--text);
+  line-height: 2.1;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Final result ── */
+.final-actions {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--final-bg);
+}
+
+.copy-btn {
+  background: transparent;
+  border: 1px solid var(--final);
+  color: var(--final);
+  padding: 7px 18px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+.copy-btn:hover { background: var(--final); color: #000; }
+
+/* ── Arrow connector ── */
+.step-arrow {
+  text-align: center;
+  color: var(--border);
+  font-size: 18px;
+  line-height: 1;
+  margin: -8px 0;
+}
+
+/* ── Empty state ── */
+.empty-relay {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--muted);
+  font-size: 13px;
+  border: 1px dashed var(--border);
+  border-radius: 3px;
+}
+
+.empty-relay .icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
+
+@media (max-width: 600px) {
+  main { padding: 20px 16px; }
+  header { padding: 16px; }
+  .setup-fields { grid-template-columns: 1fr; }
+  .setup-panel { padding: 12px 16px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">三段添削エンジン</div>
+    <div class="logo-sub">3AI Relay Writing Polish</div>
+  </div>
+  <div class="ai-badges">
+    <span class="badge groq">Groq</span>
+    <span class="badge gemini">Gemini</span>
+    <span class="badge claude">Claude</span>
+  </div>
+</header>
+
+<!-- API Key Setup -->
+<div class="setup-panel">
+  <button class="setup-toggle" id="setupToggle" onclick="toggleSetup()">
+    <span class="arrow">▶</span>
+    APIキー設定
+  </button>
+  <div class="setup-fields" id="setupFields">
+    <div class="key-field">
+      <label class="key-label groq">Groq API Key</label>
+      <input class="key-input" id="groqKey" type="password" placeholder="gsk_..." />
+    </div>
+    <div class="key-field">
+      <label class="key-label gemini">Gemini API Key</label>
+      <input class="key-input" id="geminiKey" type="password" placeholder="AIza..." />
+    </div>
+    <button class="save-btn" onclick="saveKeys()">保存する</button>
+    <span class="key-saved" id="keySaved">✓ 保存しました</span>
+  </div>
+</div>
+
+<main>
+  <!-- Input -->
+  <div class="input-section">
+    <div class="section-label">
+      <span>添削する文章を入力</span>
+      <span class="char-count" id="charCount">0文字</span>
+    </div>
+    <textarea id="inputText" placeholder="ここに添削したい文章を入力してください。
+
+Webライターの記事・ブログ・SEOコンテンツ・クライアント向け文章など、どんな文章でもOKです。3つのAIが順番に磨き上げます。" oninput="updateCount()"></textarea>
+  </div>
+
+  <!-- Run -->
+  <div class="run-section">
+    <button class="run-btn" id="runBtn" onclick="startRelay()">
+      ▶ リレー添削スタート
+    </button>
+    <span class="status-text" id="statusText"></span>
+  </div>
+
+  <!-- Relay steps -->
+  <div class="relay-container" id="relayContainer">
+    <div class="empty-relay">
+      <div class="icon">⚡</div>
+      <p>文章を入力して「リレー添削スタート」を押してください</p>
+      <p style="margin-top:8px;font-size:11px;opacity:0.6;">Groq → Gemini → Claude の順で添削が重なります</p>
+    </div>
+  </div>
+</main>
+
+<script>
+  // ── State ──
+  let keys = { groq: '', gemini: '' };
+
+  // Load saved keys
+  window.addEventListener('load', () => {
+    const saved = sessionStorage.getItem('relay_keys');
+    if (saved) {
+      keys = JSON.parse(saved);
+      if (keys.groq) document.getElementById('groqKey').value = keys.groq;
+      if (keys.gemini) document.getElementById('geminiKey').value = keys.gemini;
+    }
+  });
+
+  function toggleSetup() {
+    const toggle = document.getElementById('setupToggle');
+    const fields = document.getElementById('setupFields');
+    toggle.classList.toggle('open');
+    fields.classList.toggle('open');
+  }
+
+  function saveKeys() {
+    keys.groq = document.getElementById('groqKey').value.trim();
+    keys.gemini = document.getElementById('geminiKey').value.trim();
+    sessionStorage.setItem('relay_keys', JSON.stringify(keys));
+    const saved = document.getElementById('keySaved');
+    saved.style.display = 'block';
+    setTimeout(() => saved.style.display = 'none', 2000);
+  }
+
+  function updateCount() {
+    const len = document.getElementById('inputText').value.length;
+    document.getElementById('charCount').textContent = len.toLocaleString() + '文字';
+  }
+
+  // ── Relay steps config ──
+  const steps = [
+    {
+      id: 'groq',
+      name: 'Groq (Llama)',
+      role: 'STEP 1 — 問題点の洗い出し・骨格整理',
+      color: 'groq',
+      num: '01'
+    },
+    {
+      id: 'gemini',
+      name: 'Gemini',
+      role: 'STEP 2 — SEO最適化・構成強化',
+      color: 'gemini',
+      num: '02'
+    },
+    {
+      id: 'claude',
+      name: 'Claude',
+      role: 'STEP 3 — 人間らしい文体・最終仕上げ',
+      color: 'claude',
+      num: '03'
+    }
+  ];
+
+  // ── Prompts ──
+  function getPrompt(stepId, prevText) {
+    if (stepId === 'groq') {
+      return {
+        system: `あなたはWebライティングの校正専門家です。入力された文章の問題点を洗い出し、構造・論理・表現を整理してください。
+
+【タスク】
+- 文章全体の構成・論理の流れを整える
+- 冗長な表現・繰り返しを削る
+- 誤字脱字・文法ミスを修正する
+- 一文一義の原則で読みやすくする
+
+【出力形式】
+▼ 整理後テキスト
+（整理した文章）
+
+▼ 修正メモ
+（何をどう変えたか、3点以内で簡潔に）`,
+        user: `以下の文章を整理・校正してください：\n\n${prevText}`
+      };
+    }
+    if (stepId === 'gemini') {
+      return {
+        system: `あなたはSEOとWebライティングの専門家です。前のAIが整理した文章をSEO観点でさらに最適化してください。
+
+【タスク】
+- 読者が知りたい情報を冒頭に持ってくる（逆三角形構造）
+- キーワードを自然に盛り込む
+- 見出し相当の流れを意識した構成にする
+- 離脱されにくいリズムある文章に整える
+
+【出力形式】
+▼ SEO最適化テキスト
+（最適化した文章）
+
+▼ SEOメモ
+（改善した点、3点以内で簡潔に）`,
+        user: `以下の文章をSEO最適化してください：\n\n${prevText}`
+      };
+    }
+    if (stepId === 'claude') {
+      return {
+        system: `あなたはトップクラスのWebライターです。前の2つのAIが整理・最適化した文章を、人間が書いたような自然で魅力的な文体に仕上げてください。
+
+【タスク】
+- AI文体の定型表現（「〜と言えます」「〜することが重要です」等）を排除
+- 体験・感情・具体性を自然に盛り込む
+- 文の長短にリズムをつける
+- 読んで「プロが書いた」と感じられる文章にする
+- クライアントに提出できるクオリティに仕上げる
+
+【出力形式】
+▼ 最終仕上げテキスト
+（完成した文章）
+
+▼ 仕上げメモ
+（最終調整のポイント、3点以内で）`,
+        user: `以下の文章を人間らしい最高品質の文体に仕上げてください：\n\n${prevText}`
+      };
+    }
+  }
+
+  // ── API calls ──
+  async function callGroq(prompt) {
+    if (!keys.groq) throw new Error('GroqのAPIキーが設定されていません');
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${keys.groq}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 1500,
+        messages: [
+          { role: 'system', content: prompt.system },
+          { role: 'user', content: prompt.user }
+        ]
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error('Groqエラー: ' + (err.error?.message || res.status));
+    }
+    const data = await res.json();
+    return data.choices[0].message.content;
+  }
+
+  async function callGemini(prompt) {
+    if (!keys.gemini) throw new Error('GeminiのAPIキーが設定されていません');
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keys.gemini}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{ text: prompt.system + '\n\n' + prompt.user }]
+        }],
+        generationConfig: { maxOutputTokens: 1500 }
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error('Geminiエラー: ' + (err.error?.message || res.status));
+    }
+    const data = await res.json();
+    return data.candidates[0].content.parts[0].text;
+  }
+
+  async function callClaude(prompt) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: prompt.system,
+        messages: [{ role: 'user', content: prompt.user }]
+      })
+    });
+    if (!res.ok) throw new Error('Claudeエラー: ' + res.status);
+    const data = await res.json();
+    return data.content.map(c => c.text || '').join('');
+  }
+
+  // ── Extract main text from response ──
+  function extractMainText(raw) {
+    const match = raw.match(/▼\s*(?:整理後|SEO最適化|最終仕上げ)テキスト\s*\n([\s\S]*?)(?=\n▼|$)/);
+    if (match) return match[1].trim();
+    // fallback: first big block
+    const lines = raw.split('\n');
+    const start = lines.findIndex(l => l.startsWith('▼'));
+    if (start >= 0) {
+      const end = lines.findIndex((l, i) => i > start + 1 && l.startsWith('▼'));
+      return lines.slice(start + 1, end > 0 ? end : undefined).join('\n').trim();
+    }
+    return raw.trim();
+  }
+
+  function extractMemo(raw) {
+    const match = raw.match(/▼\s*(?:修正|SEO|仕上げ)メモ\s*\n([\s\S]*?)$/);
+    return match ? match[1].trim() : '';
+  }
+
+  // ── Render helpers ──
+  function buildStepHTML(step) {
+    return `
+      <div class="relay-step" id="step-${step.id}">
+        <div class="step-header ${step.color}">
+          <div class="step-num ${step.color}">${step.num}</div>
+          <div class="step-info">
+            <div class="step-name ${step.color}">${step.name}</div>
+            <div class="step-role">${step.role}</div>
+          </div>
+          <div class="step-status" id="status-${step.id}">
+            <span class="dot"></span>
+            <span id="status-text-${step.id}">待機中</span>
+          </div>
+        </div>
+        <div class="step-body" id="body-${step.id}"></div>
+        <div class="step-body result-text" id="result-${step.id}"></div>
+      </div>`;
+  }
+
+  function setStepRunning(id) {
+    const el = document.getElementById(`step-${id}`);
+    const st = document.getElementById(`status-${id}`);
+    const stText = document.getElementById(`status-text-${id}`);
+    const color = steps.find(s => s.id === id).color;
+    el.className = `relay-step active-${id}`;
+    st.className = `step-status running ${color}`;
+    stText.textContent = '処理中...';
+    document.getElementById(`body-${id}`).classList.add('visible');
+    document.getElementById(`body-${id}`).textContent = '✦ AIが添削中です…';
+  }
+
+  function setStepDone(id, raw) {
+    const st = document.getElementById(`status-${id}`);
+    const stText = document.getElementById(`status-text-${id}`);
+    st.className = 'step-status done';
+    stText.textContent = '完了';
+
+    const memo = extractMemo(raw);
+    const mainText = extractMainText(raw);
+
+    const body = document.getElementById(`body-${id}`);
+    body.classList.add('visible');
+    body.textContent = memo || '';
+
+    const result = document.getElementById(`result-${id}`);
+    result.classList.add('visible');
+    result.textContent = mainText;
+  }
+
+  function setStepError(id, msg) {
+    const st = document.getElementById(`status-${id}`);
+    const stText = document.getElementById(`status-text-${id}`);
+    st.className = 'step-status';
+    st.querySelector('.dot').style.background = '#e55';
+    stText.textContent = 'エラー';
+    const body = document.getElementById(`body-${id}`);
+    body.classList.add('visible');
+    body.textContent = '⚠ ' + msg;
+    body.style.color = '#e77';
+  }
+
+  // ── Main relay function ──
+  async function startRelay() {
+    const inputText = document.getElementById('inputText').value.trim();
+    if (!inputText) {
+      document.getElementById('statusText').textContent = '文章を入力してください';
+      return;
+    }
+
+    const runBtn = document.getElementById('runBtn');
+    runBtn.disabled = true;
+    document.getElementById('statusText').textContent = '';
+
+    // Build UI
+    const container = document.getElementById('relayContainer');
+    let html = '';
+    steps.forEach((step, i) => {
+      html += buildStepHTML(step);
+      if (i < steps.length - 1) {
+        html += `<div class="step-arrow">↓</div>`;
+      }
+    });
+    // Final copy section
+    html += `
+      <div class="relay-step" id="step-final" style="display:none">
+        <div class="step-header final">
+          <div class="step-num final">✦</div>
+          <div class="step-info">
+            <div class="step-name final">最終完成稿</div>
+            <div class="step-role">3AIのリレー添削が完了しました</div>
+          </div>
+        </div>
+        <div class="final-actions">
+          <button class="copy-btn" onclick="copyFinal()">完成稿をコピー</button>
+        </div>
+      </div>`;
+    container.innerHTML = html;
+
+    let currentText = inputText;
+
+    // Step 1: Groq
+    setStepRunning('groq');
+    try {
+      const prompt = getPrompt('groq', currentText);
+      const raw = await callGroq(prompt);
+      setStepDone('groq', raw);
+      currentText = extractMainText(raw);
+    } catch (e) {
+      setStepError('groq', e.message);
+      runBtn.disabled = false;
+      return;
+    }
+
+    // Step 2: Gemini
+    setStepRunning('gemini');
+    try {
+      const prompt = getPrompt('gemini', currentText);
+      const raw = await callGemini(prompt);
+      setStepDone('gemini', raw);
+      currentText = extractMainText(raw);
+    } catch (e) {
+      setStepError('gemini', e.message);
+      runBtn.disabled = false;
+      return;
+    }
+
+    // Step 3: Claude
+    setStepRunning('claude');
+    try {
+      const prompt = getPrompt('claude', currentText);
+      const raw = await callClaude(prompt);
+      setStepDone('claude', raw);
+      currentText = extractMainText(raw);
+      window._finalText = currentText;
+    } catch (e) {
+      setStepError('claude', e.message);
+      runBtn.disabled = false;
+      return;
+    }
+
+    // Show final
+    document.getElementById('step-final').style.display = 'block';
+    document.getElementById('statusText').textContent = '✦ 添削完了';
+
+    runBtn.disabled = false;
+    runBtn.textContent = '▶ もう一度リレー添削';
+  }
+
+  async function copyFinal() {
+    if (!window._finalText) return;
+    try {
+      await navigator.clipboard.writeText(window._finalText);
+      const btn = document.querySelector('.copy-btn');
+      btn.textContent = '✓ コピーしました';
+      setTimeout(() => btn.textContent = '完成稿をコピー', 2000);
+    } catch {
+      alert('コピーに失敗しました');
+    }
+  }
+</script>
+
+</body>
+</html>
